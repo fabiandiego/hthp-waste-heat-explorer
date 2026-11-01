@@ -1,5 +1,5 @@
 import { DEFAULTS, PRESETS, type PresetId, type Scenario } from "../state/scenario";
-import { referenceCops, refTemps } from "../thermo/cop";
+import { referenceCops, refTemps, type CopKey } from "../thermo/cop";
 import { mcpFromQmax, qSource } from "../thermo/heat";
 import { exLossSource } from "../thermo/exergy";
 
@@ -19,6 +19,8 @@ export type Claim = {
   assumption?: string;
   note: string;
   preset?: PresetId;
+  /** Reference COP this claim reports, so the dashboard can show it beside the live value. */
+  copKey?: CopKey;
 };
 
 /** Relative deviation that still counts as matching the paper's rounding. */
@@ -79,7 +81,7 @@ export const CLAIMS: Claim[] = [
     note: "The abstract mixes two ambient temperatures (see the CZ claim below).",
   },
   {
-    id: "COP-car-latent",
+    id: "COP-car-latent", copKey: "carnot",
     where: "Sec. 5.1 and Fig. 3",
     statement: "Carnot COP for a latent source at 90 °C and a latent sink at 150 °C is 7.1.",
     paper: 7.1, unit: "–",
@@ -97,7 +99,7 @@ export const CLAIMS: Claim[] = [
     note: "With isothermal source and sink the entropic mean temperatures equal T_H and T_0, so Lorenz equals Carnot (7.05).",
   },
   {
-    id: "COP-lor-latent-fig",
+    id: "COP-lor-latent-fig", copKey: "lorenz",
     where: "Fig. 3, left",
     statement: "Lorenz COP for the latent–latent case is 4.9 (contradicts the 3.8 in the text).",
     paper: 4.9, unit: "–",
@@ -133,7 +135,7 @@ export const CLAIMS: Claim[] = [
     note: "Eq. 10 with the outlet temperatures gives 4.70, as in Fig. 4.",
   },
   {
-    id: "COP-lor-fig4",
+    id: "COP-lor-fig4", copKey: "lorenz",
     where: "Fig. 4 and Sec. 6",
     statement: "Lorenz COP for source 90→60 °C and sink 110→150 °C is 7.3.",
     paper: 7.3, unit: "–",
@@ -142,7 +144,7 @@ export const CLAIMS: Claim[] = [
     note: "402.82 / (402.82 − 347.93) = 7.34.",
   },
   {
-    id: "COP-car-fig4",
+    id: "COP-car-fig4", copKey: "carnot",
     where: "Fig. 4 and Sec. 6",
     statement: "Carnot COP for the same case is 4.7.",
     paper: 4.7, unit: "–",
@@ -169,7 +171,7 @@ export const CLAIMS: Claim[] = [
     note: "Eq. 12.",
   },
   {
-    id: "COP-car-sens-latent",
+    id: "COP-car-sens-latent", copKey: "carnot",
     where: "Sec. 5.3, Fig. 5, abstract",
     statement: "Carnot COP for source 90→60 °C and steam at 150 °C is 4.7.",
     paper: 4.7, unit: "–",
@@ -178,7 +180,7 @@ export const CLAIMS: Claim[] = [
     note: "Uses the source outlet, 60 °C.",
   },
   {
-    id: "COP-lor-sens-latent",
+    id: "COP-lor-sens-latent", copKey: "lorenz",
     where: "Sec. 5.3, Fig. 5, abstract",
     statement: "Lorenz COP for source 90→60 °C and steam at 150 °C is 4.3.",
     paper: 4.3, unit: "–",
@@ -187,7 +189,7 @@ export const CLAIMS: Claim[] = [
     note: "With a latent sink, T̄_H = T_H and Lorenz equals AZL (5.63). Even Fig. 5's own inputs, 438/(438 − 348), give 4.87.",
   },
   {
-    id: "COP-azl",
+    id: "COP-azl", copKey: "azl",
     where: "Sec. 5.3, Fig. 5, abstract",
     statement: "AZL COP for source 90→60 °C and steam at 150 °C is 5.6.",
     paper: 5.6, unit: "–",
@@ -206,7 +208,7 @@ export const CLAIMS: Claim[] = [
     note: "Eq. 19.",
   },
   {
-    id: "COP-cz",
+    id: "COP-cz", copKey: "cz",
     where: "Fig. 6",
     statement: "CZ COP for source 90 °C cooled to ambient and steam at 150 °C is 4.4.",
     paper: 4.4, unit: "–",
@@ -225,7 +227,7 @@ export const CLAIMS: Claim[] = [
     note: "With 0 °C ambient, Eq. 17 gives 3.95. The 4.4 belongs to a 20 °C ambient.",
   },
   {
-    id: "COP-lz-fig7",
+    id: "COP-lz-fig7", copKey: "lz",
     where: "Fig. 7, right",
     statement: "LZ COP for source to ambient and sink 110→150 °C, printed as \"COP_Car = 4.7\".",
     paper: 4.7, unit: "–",
@@ -250,7 +252,7 @@ export const CLAIMS: Claim[] = [
     compute: () =>
       exLossSource(mcp500, 90, 60, 20, "isothermal", 5) / exLossSource(mcp500, 90, 60, 20, "glide", 5),
     status: "not-reproducible", preset: "fig5",
-    note: "No case is given. The paper's own default case (90→60 °C, 5 K pinch, 20 °C ambient) gives about 4×. Use the pinch and outlet sliders to find where 6× is reached.",
+    note: "No case is given. For the paper's 90 °C stream with a 5 K pinch the ratio is 4.1× at a 60 °C outlet, reaches 6× near 43 °C and 8.6× when cooled to 20 °C ambient, so \"up to 6\" understates the full-cooling case the paper argues for. Drag the outlet slider in the Fig. 2 view to see it.",
   },
 ];
 

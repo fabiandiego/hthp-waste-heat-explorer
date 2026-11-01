@@ -44,7 +44,7 @@ Summary: 10 reproduced, 5 reproduced with an assumption, 9 not reproducible, out
 | `COP-cz-abstract` | Abstract | Cooling the source from 90 °C to 0 °C limits the COP to about 4.4 (CZ). | 4.4 – | 3.95 – | 10.2 % | Not reproducible | With 0 °C ambient, Eq. 17 gives 3.95. The 4.4 belongs to a 20 °C ambient. |
 | `COP-lz-fig7` | Fig. 7, right | LZ COP for source to ambient and sink 110→150 °C, printed as "COP_Car = 4.7". | 4.7 – | 5.31 – | 12.9 % | Not reproducible | Eq. 18 gives 402.82 / (402.82 − 326.90) = 5.31. The panel header shows the CZ formula and a Carnot label. |
 | `COP-car-wrong` | Sec. 6, conclusion | Carnot with sink outlet and source INLET (a common shortcut) gives 7.0. | 7 – | 7.05 – | 0.7 % | Reproduced | 423.15 / (423.15 − 363.15) = 7.05; the paper uses it as an example of a misleading reference. |
-| `Ex-ratio` | Sec. 3 | Exergy losses with isothermal heat absorption are up to 6 times higher than with a glide. | 6 × | 4.13 × | 31.1 % | Not reproducible | No case is given. The paper's own default case (90→60 °C, 5 K pinch, 20 °C ambient) gives about 4×. Use the pinch and outlet sliders to find where 6× is reached. |
+| `Ex-ratio` | Sec. 3 | Exergy losses with isothermal heat absorption are up to 6 times higher than with a glide. | 6 × | 4.13 × | 31.1 % | Not reproducible | No case is given. For the paper's 90 °C stream with a 5 K pinch the ratio is 4.1× at a 60 °C outlet, reaches 6× near 43 °C and 8.6× when cooled to 20 °C ambient, so "up to 6" understates the full-cooling case the paper argues for. Drag the outlet slider in the Fig. 2 view to see it. |
 
 ## Not covered
 
