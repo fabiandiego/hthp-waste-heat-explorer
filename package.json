@@ -1,0 +1,13 @@
+{
+  "name": "hthp-waste-heat-explorer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Interactive reproduction and audit of Zotter (2026), reference COPs for HTHPs using sensible industrial waste heat.",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "bun test",
+    "build": "bun run typecheck && bun scripts/build.ts",
+    "reproduction": "bun scripts/gen-reproduction.ts"
+  }
+}
