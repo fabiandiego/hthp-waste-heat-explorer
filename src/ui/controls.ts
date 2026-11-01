@@ -10,17 +10,23 @@ type NumKey = keyof typeof LIMITS;
 
 function slider(store: Store, key: NumKey, label: string, unit: string) {
   const lim = LIMITS[key];
-  const out = h("output", { for: `in-${key}` });
+  const num = h("input", { type: "number", id: `num-${key}`, min: lim.min, max: lim.max, step: lim.step, inputmode: "decimal", "aria-label": `${label}, exact value in ${unit}` }) as HTMLInputElement;
   const input = h("input", { type: "range", id: `in-${key}`, min: lim.min, max: lim.max, step: lim.step, "aria-label": label }) as HTMLInputElement;
-  const lab = h("span", {}, label);
+  const lab = h("label", { for: `in-${key}` }, label);
   input.addEventListener("input", () => store.set({ [key]: Number(input.value) } as Partial<Scenario>));
-  const wrap = h("div", { class: "ctl" }, h("label", { for: `in-${key}` }, lab, out), input);
+  num.addEventListener("change", () => {
+    const v = Number(num.value);
+    if (Number.isFinite(v) && num.value !== "") store.set({ [key]: v } as Partial<Scenario>);
+    else num.value = String(store.get()[key]);
+  });
+  const wrap = h("div", { class: "ctl" }, h("div", { class: "row", style: "justify-content:space-between;font-size:0.88rem;color:var(--ink-2)" }, lab, h("span", { class: "val" }, num, unit)), input);
   return {
     el: wrap,
     sync(s: Scenario, opts: { disabled?: boolean; label?: string } = {}) {
       input.value = String(s[key]);
-      out.textContent = `${fmt(s[key], lim.step < 1 ? 1 : 0)} ${unit}`;
+      if (document.activeElement !== num) num.value = String(s[key]);
       input.disabled = !!opts.disabled;
+      num.disabled = !!opts.disabled;
       wrap.setAttribute("aria-disabled", String(!!opts.disabled));
       if (opts.label) lab.textContent = opts.label;
     },
@@ -122,10 +128,12 @@ export function mountKpis(host: HTMLElement, store: Store) {
   const cards = keys.map((k) => {
     const val = h("div", { class: "k-val" });
     const sub = h("div", { class: "k-sub" });
+    const chip = h("a", { class: "kchip" });
+    chip.hidden = true;
     const card = h("div", { class: "kpi" },
       h("div", { class: "k-name" }, h("i", { class: "swatch", style: `background:${COLOR.ref[k]}` }), `COP ${REF_NAME[k]}`),
-      val, sub);
-    return { k, card, val, sub };
+      val, chip, sub);
+    return { k, card, val, sub, chip };
   });
   const heatCard = (name: string, color: string) => {
     const val = h("div", { class: "k-val" });
@@ -134,15 +142,13 @@ export function mountKpis(host: HTMLElement, store: Store) {
     return { card: h("div", { class: "kpi" }, h("div", { class: "k-name" }, h("i", { class: "swatch", style: `background:${color}` }), name), val, extra, sub), val, sub, extra };
   };
   const used = heatCard("Waste heat used", COLOR.src);
-  const deliv = heatCard("Heat delivered", COLOR.sink);
-  const full = heatCard("If cooled to ambient", COLOR.ref.cz);
   const pel = heatCard("Electric power", COLOR.cyc);
   const meter = h("div", { class: "meter", role: "meter", "aria-label": "Share of the waste heat used" }, h("i", {}));
   used.extra.append(meter);
 
   host.append(
     h("div", { class: "kpis" }, ...cards.map((c) => c.card)),
-    h("div", { class: "heat" }, used.card, deliv.card, full.card, pel.card),
+    h("div", { class: "heat" }, used.card, pel.card),
   );
 
   const sync = (s: Scenario) => {
@@ -154,23 +160,58 @@ export function mountKpis(host: HTMLElement, store: Store) {
       c.card.dataset.match = String(c.k === d.matchKey);
       c.val.textContent = r.valid ? fmt(r.value) : "—";
       const claim = preset ? CLAIMS.find((x) => x.preset === preset && x.copKey === c.k) : undefined;
-      c.sub.textContent = r.valid
-        ? claim ? `Paper: ${claim.paper} · ${COP_DESC[c.k]}` : COP_DESC[c.k]
-        : REASON[r.reason ?? ""] ?? "";
+      c.sub.textContent = r.valid ? COP_DESC[c.k] : REASON[r.reason ?? ""] ?? "";
+      c.chip.hidden = !(r.valid && claim);
+      if (r.valid && claim) {
+        const st = claim.status === "reproduced" ? ["ok", "✓"] : claim.status === "not-reproducible" ? ["no", "✕"] : ["as", "≈"];
+        c.chip.className = `kchip ${st[0]}`;
+        c.chip.textContent = `${st[1]} paper ${claim.paper}`;
+        c.chip.setAttribute("href", `#claim-${claim.id}`);
+        c.chip.title = claim.status === "not-reproducible" ? "The paper prints a value its own equations do not give. See the audit row." : "Matches the paper.";
+      }
       c.card.title = c.k === d.matchKey ? "The reference that matches this source and sink" : "";
     }
     used.val.textContent = `${fmt(d.q.src, 0)} kW`;
     used.sub.textContent = s.sourceType === "latent" ? "latent source" : `${fmt(d.q.share * 100, 0)} % of ${fmt(d.q.max, 0)} kW potential`;
     (meter.firstChild as HTMLElement).style.width = `${Math.min(100, (d.q.share || 0) * 100)}%`;
-    deliv.val.textContent = `${fmt(d.q.sinkMatch, 0)} kW`;
-    deliv.sub.textContent = `ideal, ${REF_NAME[d.matchKey]} reference`;
-    full.val.textContent = Number.isFinite(d.q.sinkFull) ? `${fmt(d.q.sinkFull, 0)} kW` : "—";
-    full.sub.textContent = d.fullKey && Number.isFinite(d.q.sinkFull)
-      ? `${REF_NAME[d.fullKey]} reference, ${fmt(d.q.sinkFull / d.q.sinkMatch, 1)}× the delivered heat`
-      : "needs a sensible source above ambient";
     pel.val.textContent = `${fmt(d.q.pelMatch, 0)} kW`;
     pel.sub.textContent = Number.isFinite(d.q.pelFull) ? `${fmt(d.q.pelFull, 0)} kW if cooled to ambient` : "ideal cycle";
   };
   sync(store.get());
   store.subscribe(sync);
+}
+
+/** The page's main result: heat delivered now vs. with the source cooled to ambient. */
+export function mountHeadline(host: HTMLElement, store: Store) {
+  const now = h("div", { class: "h-val" });
+  const full = h("div", { class: "h-val" });
+  const ratio = h("div", { class: "h-ratio" });
+  const nowLab = h("div", { class: "h-lab" });
+  const fullLab = h("div", { class: "h-lab" });
+  const note = h("p", { class: "h-note" });
+  host.className = "headline";
+  host.setAttribute("aria-live", "polite");
+  host.append(h("div", { class: "h-now" }, nowLab, now), h("div", { class: "h-arrow", "aria-hidden": "true" }, "→"), h("div", { class: "h-full" }, fullLab, full), ratio, note);
+  const sync = (s: Scenario) => {
+    const d = store.derived();
+    const ok = d.fullKey && Number.isFinite(d.q.sinkFull) && Number.isFinite(d.q.sinkMatch);
+    host.hidden = !ok;
+    if (!ok || !d.fullKey) return;
+    nowLab.textContent = `Now: to ${fmt(s.tSrcOut, 0)} °C · ${REF_NAME[d.matchKey]} COP ${fmt(d.cops[d.matchKey].value)}`;
+    now.textContent = `${fmt(d.q.sinkMatch, 0)} kW`;
+    fullLab.textContent = `To ambient ${fmt(s.tAmb, 0)} °C · ${REF_NAME[d.fullKey]} COP ${fmt(d.cops[d.fullKey].value)}`;
+    full.textContent = `${fmt(d.q.sinkFull, 0)} kW`;
+    ratio.textContent = `${fmt(d.q.sinkFull / d.q.sinkMatch, 1)}× heat`;
+    note.textContent = "Heat delivered by an ideal machine on the same waste-heat stream. The lower COP still wins on heat because more of the stream is used.";
+  };
+  sync(store.get());
+  store.subscribe(sync);
+}
+
+/** One-line case summary used by the mobile case bar. */
+export function caseSummary(s: Scenario): string {
+  const src = s.sourceType === "latent" ? `src ${s.tSrcIn} °C latent` : `src ${s.tSrcIn}→${s.tSrcOut} °C`;
+  const sink = s.sinkType === "latent" ? `steam ${s.tSinkOut} °C` : `sink ${s.tSinkIn}→${s.tSinkOut} °C`;
+  const p = activePreset(s);
+  return `${p ? PRESETS[p].label + " · " : ""}${src} · ${sink} · amb ${s.tAmb} °C`;
 }

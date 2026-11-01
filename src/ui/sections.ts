@@ -40,7 +40,7 @@ export function mountTq(host: HTMLElement, store: Store) {
     h("button", { type: "button", "data-m": m, onclick: () => { mode = m; render(); } }, m === "isothermal" ? "Evaporator (vapour compression)" : "Gliding HX (rJC, RHP, AZL)"));
   const readout = h("div", { class: "readout", "aria-live": "polite" });
   let cancel = () => {};
-  const play = h("button", { type: "button", class: "btn" }, "Animate cooling to ambient");
+  const play = h("button", { type: "button", class: "btn ghost" }, "▶ Animate cooling to ambient");
   play.addEventListener("click", () => {
     const s = store.get();
     if (s.sourceType === "latent") return;
@@ -53,7 +53,7 @@ export function mountTq(host: HTMLElement, store: Store) {
     chartEl,
     legend([
       { label: "Source stream (used part)", color: COLOR.src },
-      { label: "Rest of the potential, down to ambient", color: COLOR.src, dash: true },
+      { label: "Rest of the potential, down to ambient", color: "color-mix(in srgb, var(--src) 35%, transparent)" },
       { label: "Refrigerant", color: COLOR.cyc },
       { label: "Ambient", color: COLOR.amb, dash: true },
     ]),
@@ -80,24 +80,27 @@ export function mountTq(host: HTMLElement, store: Store) {
 /* ---------- Figs. 3-7: T - dS diagram ---------- */
 export function mountTds(host: HTMLElement, store: Store) {
   let key: CopKey | null = null;
+  let zoom = false;
+  const zoomBtns = [false, true].map((z) =>
+    h("button", { type: "button", "data-z": String(z), onclick: () => { zoom = z; render(1); } }, z ? "Zoom to cycle" : "Axis from 0 K"));
   const chartEl = h("div", {});
   const chart = createChart(chartEl);
   const keyBtns = (["carnot", "lorenz", "azl", "cz", "lz"] as CopKey[]).map((k) =>
     h("button", { type: "button", "data-k": k, onclick: () => { key = k; render(1); } }, REF_NAME[k]));
   const readout = h("div", { class: "readout", "aria-live": "polite" });
   let cancel = () => {};
-  const replay = h("button", { type: "button", class: "btn ghost" }, "Replay cycle");
+  const replay = h("button", { type: "button", class: "btn ghost" }, "▶ Replay cycle");
   replay.addEventListener("click", () => {
     cancel();
     cancel = tween(0.02, 1, 1800, (v) => render(v));
   });
   host.append(
-    h("div", { class: "row" }, h("div", { class: "seg", role: "group", "aria-label": "Reference cycle" }, ...keyBtns), replay),
+    h("div", { class: "row" }, h("div", { class: "seg", role: "group", "aria-label": "Reference cycle" }, ...keyBtns), h("div", { class: "seg", role: "group", "aria-label": "Temperature axis" }, ...zoomBtns), replay),
     chartEl,
     legend([
-      { label: "Reference cycle", color: "var(--ink)" },
-      { label: "Source stream", color: COLOR.src, dash: true },
-      { label: "Sink stream", color: COLOR.sink, dash: true },
+      { label: "Reference cycle", color: "var(--ink)", dash: true },
+      { label: "Source stream", color: COLOR.src },
+      { label: "Sink stream", color: COLOR.sink },
       { label: "Source loss T_amb·ΔṠ", color: COLOR.src, hatch: true },
       { label: "Sink loss T_amb·ΔṠ", color: COLOR.sink, hatch: true },
     ]),
@@ -108,7 +111,8 @@ export function mountTds(host: HTMLElement, store: Store) {
     const d = store.derived();
     if (!key || !d.cops[key].valid) key = d.matchKey;
     const k = key;
-    const spec = buildTds(s, k, progress);
+    const spec = buildTds(s, k, progress, zoom);
+    zoomBtns.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.z === String(zoom))));
     chart.update(spec);
     keyBtns.forEach((b) => {
       const kk = b.dataset.k as CopKey;
@@ -138,7 +142,7 @@ export function mountSweeps(sweepHost: HTMLElement, tradeHost: HTMLElement, stor
   sweepHost.append(sEl, sLeg, note);
   tradeHost.append(tEl, tLeg, tNote);
   const legendOf = (spec: ReturnType<typeof buildSweep>) =>
-    legend(spec.series.flatMap((x) => (x.kind === "line" ? [{ label: x.label, color: x.color, dash: x.dash }] : [])));
+    legend(spec.series.flatMap((x) => (x.kind === "line" ? [{ label: x.label, color: x.color, dash: !!x.dash }] : [])));
   const render = (s: Scenario) => {
     const latent = s.sourceType === "latent" || !(s.tSrcIn > s.tAmb);
     sEl.hidden = latent;
@@ -164,7 +168,7 @@ export function mountSweeps(sweepHost: HTMLElement, tradeHost: HTMLElement, stor
 
 /* ---------- Schematics ---------- */
 export function mountSchematics(host: HTMLElement, store: Store) {
-  const playing = { on: !prefersReducedMotion() };
+  const playing = { on: false };
   const toggle = h("button", { type: "button", class: "btn ghost" });
   const fitPec = h("div", { class: "row" });
   const fitGas = h("div", { class: "row" });
@@ -176,7 +180,8 @@ export function mountSchematics(host: HTMLElement, store: Store) {
   host.append(h("div", { class: "row" }, toggle), grid);
   const setPlay = () => {
     host.classList.toggle("playing", playing.on);
-    toggle.textContent = playing.on ? "Pause flow animation" : "Play flow animation";
+    toggle.textContent = playing.on ? "⏸ Pause flow animation" : "▶ Play flow animation";
+    toggle.toggleAttribute("disabled", prefersReducedMotion());
   };
   toggle.addEventListener("click", () => { playing.on = !playing.on; setPlay(); });
   setPlay();
@@ -227,17 +232,17 @@ export function mountAudit(host: HTMLElement, store: Store, onLoad: () => void) 
     const load = c.preset
       ? h("button", { type: "button", class: "chip-btn", onclick: () => { store.set(scenarioOf(c.preset!)); onLoad(); } }, "Load case")
       : null;
-    return h("tr", {},
+    return h("tr", { id: `claim-${c.id}` },
       h("td", {}, h("div", {}, c.statement), h("div", { class: "where" }, c.where)),
-      h("td", { class: "num" }, `${c.paper} ${c.unit === "–" ? "" : c.unit}`),
-      h("td", { class: "num" }, `${fmt(v, Math.abs(v) >= 100 ? 1 : 2)} ${c.unit === "–" ? "" : c.unit}`),
-      h("td", { class: "num" }, `${fmt(relDev(c) * 100, 1)} %`),
+      h("td", { class: "num", "data-label": "Paper" }, `${c.paper} ${c.unit === "–" ? "" : c.unit}`),
+      h("td", { class: "num", "data-label": "Recomputed" }, `${fmt(v, Math.abs(v) >= 100 ? 1 : 2)} ${c.unit === "–" ? "" : c.unit}`),
+      h("td", { class: "num", "data-label": "Dev." }, `${fmt(relDev(c) * 100, 1)} %`),
       h("td", {}, h("span", { class: `status ${st.cls}` }, `${st.icon} ${st.text}`)),
       h("td", {}, h("div", { class: "note" }, c.note), c.assumption ? h("div", { class: "note" }, h("b", {}, "Assumption: "), c.assumption) : null),
       h("td", {}, load));
   });
   host.append(summary,
-    h("div", { class: "table-wrap" }, h("table", {},
+    h("div", { class: "table-wrap" }, h("table", { class: "audit-table" },
       h("thead", {}, h("tr", {}, h("th", {}, "Paper states"), h("th", { class: "num" }, "Paper"), h("th", { class: "num" }, "Recomputed"), h("th", { class: "num" }, "Dev."), h("th", {}, "Status"), h("th", {}, "Why"), h("th", {}, ""))),
       h("tbody", {}, ...rows))));
 }

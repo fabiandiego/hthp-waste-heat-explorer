@@ -61,7 +61,7 @@ export function buildTq(s: Scenario, d: Derived, mode: HxMode): ChartSpec & { lo
   const qUsed = qSource(mcp, s.tSrcIn, s.tSrcOut);
 
   if (qUsed > 0) series.push({ kind: "poly", points: [...srcUsed, ...ref.slice().reverse()], fill: mode === "isothermal" ? "var(--warn)" : COLOR.src, opacity: 0.16 });
-  series.push({ kind: "line", label: "Potential to ambient", color: COLOR.src, dash: true, width: 1.5, points: srcFull });
+  series.push({ kind: "line", label: "Potential to ambient", color: COLOR.src, opacity: 0.35, width: 1.5, points: srcFull });
   series.push({ kind: "line", label: "Source (used)", color: COLOR.src, width: 3, points: srcUsed, hover: true });
   if (qUsed > 0) series.push({ kind: "line", label: mode === "isothermal" ? "Evaporating refrigerant" : "Gliding refrigerant", color: COLOR.cyc, points: ref, hover: true });
   series.push({ kind: "hline", y: s.tAmb, color: COLOR.amb, dash: true });
@@ -81,7 +81,7 @@ export function buildTq(s: Scenario, d: Derived, mode: HxMode): ChartSpec & { lo
 }
 
 /** Figs. 3-7: one reference cycle in the T - dS diagram, axis from 0 K. */
-export function buildTds(s: Scenario, key: CopKey, progress = 1): ChartSpec & { model: TdsModel } {
+export function buildTds(s: Scenario, key: CopKey, progress = 1, zoom = false): ChartSpec & { model: TdsModel } {
   const m = tdsModel(s, key);
   const series: Series[] = [];
   const bottom = -KELVIN_OFFSET;
@@ -91,9 +91,10 @@ export function buildTds(s: Scenario, key: CopKey, progress = 1): ChartSpec & { 
     const k = Math.max(1, Math.round(progress * m.cycle.length));
     const cyc = m.cycle.slice(0, k);
     if (progress >= 1) series.push({ kind: "poly", points: m.cycle, fill: COLOR.ref[key], opacity: 0.12 });
-    series.push({ kind: "line", label: `${REF_NAME[key]} cycle`, color: COLOR.ref[key], width: 2.5, points: cyc });
-    series.push({ kind: "line", label: "Source stream", color: COLOR.src, width: 2, dash: true, points: m.srcCurve, hover: true });
-    series.push({ kind: "line", label: "Sink stream", color: COLOR.sink, width: 2, dash: true, points: m.sinkCurve, hover: true });
+    series.push({ kind: "line", label: `${REF_NAME[key]} cycle`, color: COLOR.ref[key], width: 3, dash: "7 5", points: cyc });
+    // Real streams drawn on top of the reference so they stay visible where they coincide.
+    series.push({ kind: "line", label: "Source stream", color: COLOR.src, width: 2, points: m.srcCurve, hover: true, tag: { at: 0.15, text: "source" } });
+    series.push({ kind: "line", label: "Sink stream", color: COLOR.sink, width: 2, points: m.sinkCurve, hover: true, tag: { at: 0.85, text: "sink" } });
     if (progress >= 1) {
       const [a0, a1] = m.lossSrc;
       const [b0, b1] = m.lossSink;
@@ -102,9 +103,12 @@ export function buildTds(s: Scenario, key: CopKey, progress = 1): ChartSpec & { 
     }
   }
   series.push({ kind: "hline", y: s.tAmb, color: COLOR.amb, dash: true, label: `T_amb ${fmt(s.tAmb, 0)} °C` });
+  const lowest = Math.min(s.tAmb, ...m.srcCurve.map((p) => p.y), ...m.cycle.map((p) => p.y));
   return {
     x: { domain: [0, xMax * 1.12], label: "Entropy flow ΔṠ [kW/K]", unit: "kW/K" },
-    y: { domain: [bottom, top], label: "Temperature [°C]  (axis from 0 K)", unit: "°C", ticks: [-273.15, -200, -100, 0, 100, 200].filter((v) => v <= top) },
+    y: zoom
+      ? { domain: [lowest - 15, top], label: "Temperature [°C]  (zoomed; loss bars continue to 0 K)", unit: "°C" }
+      : { domain: [bottom, top], label: "Temperature [°C]  (axis from 0 K)", unit: "°C", ticks: [-273.15, -200, -100, 0, 100, 200].filter((v) => v <= top) },
     series,
     aspect: 2,
     summary: m.valid
@@ -171,7 +175,7 @@ export function buildTradeoff(s: Scenario): ChartSpec {
     series: [
       { kind: "line", label: `Heat delivered Q̇_H (${REF_NAME[key]})`, color: COLOR.sink, width: 2.5, points: qh, hover: true },
       { kind: "line", label: "Waste heat used Q̇_src", color: COLOR.src, points: qs, hover: true },
-      { kind: "line", label: "Electric power P_el", color: COLOR.cyc, dash: true, points: pel, hover: true },
+      { kind: "line", label: "Electric power P_el", color: COLOR.cyc, width: 1.5, points: pel, hover: true },
       { kind: "marker", x: cur.x, y: cur.y, color: COLOR.sink, label: `${fmt(cur.y, 0)} kW` },
       ...(d.fullKey && Number.isFinite(d.q.sinkFull)
         ? [{ kind: "marker" as const, x: s.tAmb, y: d.q.sinkFull, color: COLOR.ref[d.fullKey], ring: true, label: `${REF_NAME[d.fullKey]}: ${fmt(d.q.sinkFull, 0)} kW` }]

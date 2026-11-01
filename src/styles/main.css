@@ -6,7 +6,7 @@
   --surface-2: #e4e9ec;
   --ink: #111a21;
   --ink-2: #4a5864;
-  --ink-3: #6c7a86;
+  --ink-3: #596773;
   --line: #cfd7dd;
   --grid: #e1e6ea;
   --accent: #1f4fa3;
@@ -88,7 +88,9 @@ button, input, select { font: inherit; color: inherit; }
 .ctl[aria-disabled="true"] { opacity: 0.45; }
 .seg { display: inline-grid; grid-auto-flow: column; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 .seg button { border: 0; background: transparent; padding: 4px 10px; font-size: 0.85rem; cursor: pointer; color: var(--ink-2); }
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.seg button:disabled { color: var(--ink-3); opacity: 0.5; cursor: not-allowed; text-decoration: line-through; }
+.seg button:not(:disabled):not([aria-pressed="true"]):hover { color: var(--accent); }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip-btn { white-space: nowrap; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 11px; font-size: 0.84rem; cursor: pointer; }
 .chip-btn:hover { border-color: var(--accent); color: var(--accent); }
@@ -101,6 +103,7 @@ button, input, select { font: inherit; color: inherit; }
 
 /* Sections */
 main { display: grid; gap: 40px; min-width: 0; }
+section { scroll-margin-top: calc(env(safe-area-inset-top, 0px) + 56px); }
 section { display: grid; gap: 16px; min-width: 0; }
 .sec-head { display: grid; gap: 6px; }
 .sec-head p { color: var(--ink-2); }
@@ -116,10 +119,10 @@ section { display: grid; gap: 16px; min-width: 0; }
 .kpi .k-name { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--ink-2); }
 .kpi .k-val { font-family: var(--font-mono); font-size: 1.7rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .kpi .k-sub { font-size: 0.78rem; color: var(--ink-3); }
-.kpi[data-state="na"] .k-val { color: var(--ink-3); }
-.kpi[data-match="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-.heat { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-@media (max-width: 760px) { .heat { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi[data-state="na"] { padding-block: 8px; background: transparent; border-style: dashed; }
+.kpi[data-state="na"] .k-val { color: var(--ink-3); font-size: 1rem; }
+.kpi[data-match="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.heat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .meter { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
 .meter > i { display: block; height: 100%; background: var(--src); border-radius: 4px; }
 
@@ -186,3 +189,77 @@ tr:last-child td { border-bottom: 0; }
 footer { border-top: 1px solid var(--line); color: var(--ink-3); font-size: 0.85rem; }
 footer .wrap { padding-block: 20px 36px; display: grid; gap: 6px; }
 ol.refs { margin: 0; padding-left: 20px; display: grid; gap: 4px; color: var(--ink-2); font-size: 0.88rem; }
+
+/* ---- Headline result ---- */
+.headline { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 8px 20px; align-items: end; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; }
+.headline .h-lab { font-size: 0.88rem; color: var(--ink-2); }
+.headline .h-val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: clamp(2rem, 4.5vw, 3rem); line-height: 1; }
+.headline .h-now .h-val { color: var(--ink); }
+.headline .h-full .h-val { color: var(--sink); }
+.headline .h-arrow { font-size: 1.6rem; color: var(--ink-3); padding-bottom: 4px; }
+.headline .h-ratio { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; background: var(--surface-2); border-radius: var(--r); padding: 4px 12px; }
+.headline .h-note { grid-column: 1 / -1; font-size: 0.85rem; color: var(--ink-3); }
+@media (max-width: 640px) { .headline { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); } .headline .h-ratio { grid-column: 1 / -1; justify-self: start; } }
+
+/* ---- KPI mismatch chips ---- */
+a.kchip { text-decoration: none; font-size: 0.74rem; font-weight: 600; border-radius: 999px; padding: 1px 8px; width: fit-content; }
+a.kchip.ok { background: var(--ok-bg); color: var(--ok); }
+a.kchip.as { background: var(--warn-bg); color: var(--warn); }
+a.kchip.no { background: var(--bad-bg); color: var(--bad); }
+.thesis a { color: var(--bad); font-weight: 600; }
+
+/* ---- Section nav ---- */
+.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 15; background: var(--surface); border-bottom: 1px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 16; background: var(--surface); }
+.toc .wrap { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-block: 6px; }
+.toc a { white-space: nowrap; text-decoration: none; color: var(--ink-2); font-size: 0.88rem; padding: 6px 10px; border-radius: var(--r); }
+.toc a:hover { color: var(--accent); background: var(--surface-2); }
+.toc a[aria-current="true"] { color: var(--accent); background: var(--surface-2); font-weight: 600; }
+.rail { top: calc(env(safe-area-inset-top, 0px) + 56px); max-height: calc(100vh - 72px); }
+
+/* ---- Mobile: results first, inputs in a sheet behind a sticky case bar ---- */
+.casebar, .rail-close { display: none; }
+@media (max-width: 920px) {
+  .casebar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; gap: 10px; align-items: center; justify-content: space-between; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -4px 14px rgb(0 0 0 / 0.08); padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .casebar .btn { white-space: nowrap; flex: none; }
+  .casebar .cb-sum { font-family: var(--font-mono); font-size: 0.8rem; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shell { padding-bottom: 120px; }
+  .rail { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 40; max-height: 62vh; border-radius: 14px 14px 0 0; transform: translateY(105%); transition: transform 0.25s ease; box-shadow: 0 -10px 30px rgb(0 0 0 / 0.2); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); visibility: hidden; }
+  .rail.open { transform: none; visibility: visible; }
+  .rail-close { display: inline-flex; justify-self: end; }
+  .scrim { position: fixed; inset: 0; z-index: 35; background: rgb(0 0 0 / 0.35); }
+}
+@media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
+
+/* ---- Touch targets ---- */
+@media (pointer: coarse) {
+  .chip-btn, .seg button, .btn, .toc a { min-height: 44px; }
+  .presets { gap: 8px; }
+  .ctl input[type="range"] { height: 32px; }
+  .ctl input[type="number"] { min-height: 36px; }
+}
+
+/* ---- Exact-value inputs ---- */
+.ctl input[type="number"] { width: 6.5ch; text-align: right; font-family: var(--font-mono); font-size: 0.85rem; border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 0 2px; -moz-appearance: textfield; }
+.ctl input[type="number"]:hover, .ctl input[type="number"]:focus { border-color: var(--line); background: var(--surface-2); }
+.ctl input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+.ctl .val { display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: 0.85rem; color: var(--ink); }
+
+/* ---- Chart data view ---- */
+details.dataview summary { cursor: pointer; font-size: 0.85rem; color: var(--accent); width: fit-content; }
+details.dataview .table-wrap { margin-top: 8px; }
+details.dataview table { min-width: 0; font-size: 0.8rem; }
+
+/* ---- Schematic legibility on phones ---- */
+@media (max-width: 560px) { .schem .lbl-s { display: none; } .schem .lbl { font-size: 15px; } }
+
+/* ---- Audit as cards on phones ---- */
+@media (max-width: 640px) {
+  .audit-table, .audit-table tbody, .audit-table tr, .audit-table td { display: block; min-width: 0; width: 100%; }
+  .audit-table { min-width: 0; }
+  .audit-table thead { display: none; }
+  .audit-table tr { border-bottom: 1px solid var(--line); padding: 10px 12px; display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .audit-table td { border: 0; padding: 0; text-align: left !important; width: auto; }
+  .audit-table td:first-child, .audit-table td:nth-child(5), .audit-table td:nth-child(6), .audit-table td:nth-child(7) { flex-basis: 100%; }
+  .audit-table td[data-label]::before { content: attr(data-label) " "; color: var(--ink-3); font-size: 0.75rem; }
+}

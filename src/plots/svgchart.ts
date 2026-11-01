@@ -6,7 +6,7 @@
 export type Pt = { x: number; y: number };
 
 export type Series =
-  | { kind: "line"; label: string; color: string; points: Pt[]; dash?: boolean; width?: number; hover?: boolean; endLabel?: boolean }
+  | { kind: "line"; label: string; color: string; points: Pt[]; dash?: boolean | string; width?: number; opacity?: number; hover?: boolean; endLabel?: boolean; tag?: { at: number; text: string } }
   | { kind: "poly"; points: Pt[]; fill: string; opacity?: number; stroke?: string }
   | { kind: "hatch"; x0: number; x1: number; y0: number; y1: number; color: string; angle: 45 | 135; label?: string }
   | { kind: "marker"; x: number; y: number; color: string; label?: string; ring?: boolean }
@@ -143,7 +143,14 @@ export function createChart(host: HTMLElement): Chart {
         }
       } else if (se.kind === "line") {
         if (se.points.length < 2) continue;
-        plot.appendChild(el("path", { d: path(se.points), fill: "none", stroke: se.color, "stroke-width": se.width ?? 2, "stroke-dasharray": se.dash ? "6 5" : "none", "stroke-linejoin": "round", "stroke-linecap": "round" }));
+        plot.appendChild(el("path", { d: path(se.points), fill: "none", stroke: se.color, "stroke-width": se.width ?? 2, "stroke-opacity": se.opacity ?? 1, "stroke-dasharray": typeof se.dash === "string" ? se.dash : se.dash ? "6 5" : "none", "stroke-linejoin": "round", "stroke-linecap": "round" }));
+        if (se.tag) {
+          const p = se.points[Math.min(se.points.length - 1, Math.max(0, Math.round(se.tag.at * (se.points.length - 1))))];
+          const t = el("text", { x: sx(p.x), y: sy(p.y) - 7, class: "dlabel", "text-anchor": "middle" });
+          t.style.fill = se.color;
+          t.textContent = se.tag.text;
+          labels.appendChild(t);
+        }
         if (se.endLabel) {
           const p = se.points[se.points.length - 1];
           const t = el("text", { x: Math.min(sx(p.x) + 6, W - M.r), y: sy(p.y) - 6, class: "dlabel", "text-anchor": sx(p.x) > W - 120 ? "end" : "start" });
@@ -224,9 +231,29 @@ export function createChart(host: HTMLElement): Chart {
     if (svg) svg.replaceWith(s);
     else host.prepend(s);
     svg = s;
+    renderTable(spec);
   };
 
+  // "Show values": the hoverable lines sampled at the x ticks, for keyboard and screen-reader users.
+  const details = document.createElement("details");
+  details.className = "dataview";
+  details.innerHTML = "<summary>Show values</summary>";
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "table-wrap";
+  details.appendChild(tableWrap);
+  const renderTable = (sp: ChartSpec) => {
+    const lines = sp.series.filter((x): x is Extract<Series, { kind: "line" }> => x.kind === "line" && !!x.hover);
+    details.hidden = lines.length === 0;
+    if (!lines.length || !details.open) return;
+    const xs = niceTicks(sp.x.domain[0], sp.x.domain[1], 8);
+    const head = `<tr><th class="num">${sp.x.label}</th>${lines.map((l) => `<th class="num">${l.label}${sp.y.unit ? ` [${sp.y.unit}]` : ""}</th>`).join("")}</tr>`;
+    const body = xs.map((x) => `<tr><td class="num">${fmt(x, 1)}</td>${lines.map((l) => `<td class="num">${fmt(interpAt(l.points, x))}</td>`).join("")}</tr>`).join("");
+    tableWrap.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  };
+  details.addEventListener("toggle", () => spec && renderTable(spec));
+
   host.appendChild(tip);
+  host.appendChild(details);
   const ro = typeof ResizeObserver !== "undefined"
     ? new ResizeObserver((e) => {
         const w = Math.round(e[0].contentRect.width);

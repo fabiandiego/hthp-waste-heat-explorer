@@ -34,7 +34,7 @@ export type Equation = {
   live?: (s: Scenario, d: Derived) => string;
 };
 
-const K = (v: number) => `${fmt(v, 2)} K`;
+const K = (v: number) => `${v.toFixed(2)} K`;
 const kW = (v: number) => `${fmt(v, 1)} kW`;
 
 export const EQUATIONS: Equation[] = [
@@ -103,7 +103,7 @@ export const EQUATIONS: Equation[] = [
     id: "t0am", paperNo: "Eq. 19", title: "Mean source temperature down to ambient",
     mathml: eq(Tb("0AM"), mo("="), frac(row(T("0,in"), mo("−"), T("amb")), ln(frac(T("0,in"), T("amb"))))),
     explain: "The source's entropic mean temperature when all of its heat is used. It is lower than T̄_0M, so the new references give lower COPs for more heat.",
-    live: (s, d) => `(${fmt(toK(s.tSrcIn), 2)} − ${fmt(toK(s.tAmb), 2)}) / ln(${fmt(toK(s.tSrcIn), 2)} / ${fmt(toK(s.tAmb), 2)}) = ${K(d.temps.T0AM)}`,
+    live: (s, d) => `(${toK(s.tSrcIn).toFixed(2)} − ${toK(s.tAmb).toFixed(2)}) / ln(${toK(s.tSrcIn).toFixed(2)} / ${toK(s.tAmb).toFixed(2)}) = ${K(d.temps.T0AM)}`,
   },
   {
     id: "cz", paperNo: "Eq. 17", title: "CZ reference (full sensible source, latent sink)",
