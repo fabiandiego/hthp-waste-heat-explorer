@@ -67,7 +67,7 @@ export function buildTq(s: Scenario, d: Derived, mode: HxMode): ChartSpec & { lo
   series.push({ kind: "hline", y: s.tAmb, color: COLOR.amb, dash: true });
   series.push({ kind: "text", x: qMax * 0.02, y: s.tAmb, dy: -6, text: `Ambient ${fmt(s.tAmb, 0)} °C` });
   series.push({ kind: "vline", x: qUsed, color: COLOR.ink3, dash: true, label: `${fmt(qUsed, 0)} kW used` });
-  series.push({ kind: "marker", x: qMax, y: s.tAmb, color: COLOR.src, ring: true, label: `${fmt(qMax, 0)} kW` });
+  series.push({ kind: "marker", x: qMax, y: s.tAmb, color: COLOR.src, ring: true, label: `${fmt(qMax, 0)} kW potential`, labelPos: "above" });
 
   return {
     x: { domain: [0, qMax * 1.04], label: "Heat taken from the source, Q̇ [kW]", unit: "kW" },
@@ -141,7 +141,9 @@ export function buildSweep(s: Scenario): ChartSpec {
   if (d.fullKey && d.cops[d.fullKey].valid) {
     const v = d.cops[d.fullKey].value;
     series.push({ kind: "line", label: `${REF_NAME[d.fullKey]} (fixed: source to ambient)`, color: COLOR.ref[d.fullKey], dash: true, points: [{ x: outs[0], y: v }, { x: outs[outs.length - 1], y: v }], hover: true });
-    series.push({ kind: "marker", x: s.tAmb, y: v, color: COLOR.ref[d.fullKey], label: `${REF_NAME[d.fullKey]} ${fmt(v)}` });
+    // Label the limit at the hot end, where the curves have risen well above it.
+    series.push({ kind: "marker", x: s.tAmb, y: v, color: COLOR.ref[d.fullKey] });
+    series.push({ kind: "text", x: s.tSrcIn - 1, y: v, dy: 17, anchor: "end", text: `${REF_NAME[d.fullKey]} limit ${fmt(v)}` });
   }
   series.push({ kind: "vline", x: s.tSrcOut, color: COLOR.ink3, dash: true, label: `t_out ${fmt(s.tSrcOut, 0)} °C` });
   const cap = Math.min(Math.max(8, Math.ceil(yMax * 1.1)), 25);
@@ -168,7 +170,8 @@ export function buildTradeoff(s: Scenario): ChartSpec {
     pel.push({ x: t, y: pElectric(q, cop) });
   }
   const yMax = Math.max(...qh.map((p) => p.y).filter(Number.isFinite), s.QmaxkW);
-  const cur = qh.reduce((a, p) => (Math.abs(p.x - s.tSrcOut) < Math.abs(a.x - s.tSrcOut) ? p : a), qh[0]);
+  // The current point is computed at the exact outlet, so it matches the headline and KPI cards.
+  const cur = { x: s.tSrcOut, y: d.q.sinkMatch };
   return {
     x: { domain: [s.tAmb, s.tSrcIn], label: "Source outlet temperature t_src,out [°C]", unit: "°C" },
     y: { domain: [0, yMax * 1.1], label: "Heat flow / power [kW]", unit: "kW" },
@@ -176,7 +179,7 @@ export function buildTradeoff(s: Scenario): ChartSpec {
       { kind: "line", label: `Heat delivered Q̇_H (${REF_NAME[key]})`, color: COLOR.sink, width: 2.5, points: qh, hover: true },
       { kind: "line", label: "Waste heat used Q̇_src", color: COLOR.src, points: qs, hover: true },
       { kind: "line", label: "Electric power P_el", color: COLOR.cyc, width: 1.5, points: pel, hover: true },
-      { kind: "marker", x: cur.x, y: cur.y, color: COLOR.sink, label: `${fmt(cur.y, 0)} kW` },
+      { kind: "marker", x: cur.x, y: cur.y, color: COLOR.sink, label: `${fmt(cur.y, 0)} kW now`, labelPos: "above" },
       ...(d.fullKey && Number.isFinite(d.q.sinkFull)
         ? [{ kind: "marker" as const, x: s.tAmb, y: d.q.sinkFull, color: COLOR.ref[d.fullKey], ring: true, label: `${REF_NAME[d.fullKey]}: ${fmt(d.q.sinkFull, 0)} kW` }]
         : []),

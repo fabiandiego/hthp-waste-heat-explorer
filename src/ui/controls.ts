@@ -1,7 +1,7 @@
 import { h } from "./dom";
-import { LIMITS, PRESETS, type HeatKind, type PresetId, type Scenario } from "../state/scenario";
+import { DEFAULTS, LIMITS, PRESETS, type HeatKind, type PresetId, type ResetGroup, type Scenario } from "../state/scenario";
 import type { Store } from "../state/store";
-import { CLAIMS } from "../content/claims";
+import { paperClaimFor } from "../content/claims";
 import type { CopKey } from "../thermo/cop";
 import { COLOR, REF_NAME } from "../plots/specs";
 import { fmt } from "../plots/svgchart";
@@ -19,7 +19,7 @@ function slider(store: Store, key: NumKey, label: string, unit: string) {
     if (Number.isFinite(v) && num.value !== "") store.set({ [key]: v } as Partial<Scenario>);
     else num.value = String(store.get()[key]);
   });
-  const wrap = h("div", { class: "ctl" }, h("div", { class: "row", style: "justify-content:space-between;font-size:0.88rem;color:var(--ink-2)" }, lab, h("span", { class: "val" }, num, unit)), input);
+  const wrap = h("div", { class: "ctl" }, h("div", { class: "ctl-head" }, lab, h("span", { class: "val" }, num, unit)), input);
   return {
     el: wrap,
     sync(s: Scenario, opts: { disabled?: boolean; label?: string } = {}) {
@@ -46,12 +46,9 @@ function kindToggle(store: Store, key: "sourceType" | "sinkType", label: string)
   };
 }
 
-const sameScenario = (a: Scenario, b: Scenario) => (Object.keys(a) as (keyof Scenario)[]).every((k) => a[k] === b[k]);
-
-export function activePreset(s: Scenario): PresetId | null {
-  for (const [id, p] of Object.entries(PRESETS)) if (sameScenario(s, p.scenario)) return id as PresetId;
-  return null;
-}
+const groupTitle = (store: Store, color: string, title: string, group: ResetGroup) =>
+  h("div", { class: "group-title" }, h("i", { class: "swatch", style: `background:${color}` }), h("span", {}, title),
+    h("button", { type: "button", class: "link-btn", title: `Reset ${title.toLowerCase()} to the Fig. 5 values`, "aria-label": `Reset ${title.toLowerCase()}`, onclick: () => store.reset(group) }, "↺ Reset"));
 
 export function mountControls(host: HTMLElement, store: Store) {
   const srcKind = kindToggle(store, "sourceType", "Source heat type");
@@ -65,29 +62,33 @@ export function mountControls(host: HTMLElement, store: Store) {
   const qmax = slider(store, "QmaxkW", "Potential Q̇_max (to ambient)", "kW");
 
   const presetBtns = (Object.keys(PRESETS) as PresetId[]).map((id) =>
-    h("button", { type: "button", class: "chip-btn", title: PRESETS[id].caption, onclick: () => store.set(PRESETS[id].scenario) }, PRESETS[id].label),
+    h("button", { type: "button", class: "chip-btn", title: PRESETS[id].caption, onclick: () => store.loadPreset(id) }, PRESETS[id].label),
   );
   const presetCaption = h("p", { class: "hint" });
 
+  const moreSum = h("summary", {}, "Pinch and heat potential");
+  const more = h("details", { class: "more" }, moreSum, pinch.el, qmax.el,
+    h("p", { class: "hint" }, "Reference COPs ignore the pinch, as in the paper; it only affects the heat-exchanger views."));
+  const resetAll = h("button", { type: "button", class: "btn ghost small", title: "Restore every input to the paper's Fig. 5 case", onclick: () => store.reset() }, "↺ Reset all");
   host.append(
-    h("h2", {}, "Operating case"),
+    h("div", { class: "rail-head" }, h("h2", {}, "Operating case"), resetAll),
     h("div", { class: "group" },
       h("div", { class: "eyebrow" }, "Paper cases"),
       h("div", { class: "presets" }, ...presetBtns),
       presetCaption,
     ),
     h("div", { class: "group" },
-      h("div", { class: "group-title" }, h("i", { class: "swatch", style: `background:${COLOR.src}` }), "Waste heat source"),
+      groupTitle(store, COLOR.src, "Waste heat source", "source"),
       srcKind.el, sIn.el, sOut.el,
     ),
     h("div", { class: "group" },
-      h("div", { class: "group-title" }, h("i", { class: "swatch", style: `background:${COLOR.sink}` }), "Heat sink"),
+      groupTitle(store, COLOR.sink, "Heat sink", "sink"),
       sinkKind.el, kIn.el, kOut.el,
     ),
     h("div", { class: "group" },
-      h("div", { class: "group-title" }, h("i", { class: "swatch", style: `background:${COLOR.amb}` }), "Surroundings"),
-      amb.el, pinch.el, qmax.el,
-      h("p", { class: "hint" }, "Reference COPs ignore the pinch, as in the paper. It only affects the heat-exchanger views."),
+      groupTitle(store, COLOR.amb, "Surroundings", "surroundings"),
+      amb.el,
+      more,
     ),
   );
 
@@ -101,8 +102,11 @@ export function mountControls(host: HTMLElement, store: Store) {
     amb.sync(s);
     pinch.sync(s);
     qmax.sync(s, { label: s.sourceType === "latent" ? "Source heat Q̇_src" : "Potential Q̇_max (to ambient)" });
-    const p = activePreset(s);
+    const p = store.presetId();
     presetBtns.forEach((b, i) => b.setAttribute("aria-pressed", String(Object.keys(PRESETS)[i] === p)));
+    resetAll.toggleAttribute("disabled", p === "fig5");
+    moreSum.textContent = `Pinch ${fmt(s.pinch, 1)} K · ${s.sourceType === "latent" ? "heat" : "potential"} ${fmt(s.QmaxkW, 0)} kW`;
+    if (s.pinch !== DEFAULTS.pinch || s.QmaxkW !== DEFAULTS.QmaxkW) more.open = true;
     presetCaption.textContent = p ? PRESETS[p].caption : "Custom case. Pick a figure to reload the paper's inputs.";
   };
   sync(store.get());
@@ -153,13 +157,13 @@ export function mountKpis(host: HTMLElement, store: Store) {
 
   const sync = (s: Scenario) => {
     const d = store.derived();
-    const preset = activePreset(s);
+    const preset = store.presetId();
     for (const c of cards) {
       const r = d.cops[c.k];
       c.card.dataset.state = r.valid ? "ok" : "na";
       c.card.dataset.match = String(c.k === d.matchKey);
       c.val.textContent = r.valid ? fmt(r.value) : "—";
-      const claim = preset ? CLAIMS.find((x) => x.preset === preset && x.copKey === c.k) : undefined;
+      const claim = preset ? paperClaimFor(preset, c.k) : undefined;
       c.sub.textContent = r.valid ? COP_DESC[c.k] : REASON[r.reason ?? ""] ?? "";
       c.chip.hidden = !(r.valid && claim);
       if (r.valid && claim) {
@@ -209,9 +213,8 @@ export function mountHeadline(host: HTMLElement, store: Store) {
 }
 
 /** One-line case summary used by the mobile case bar. */
-export function caseSummary(s: Scenario): string {
+export function caseSummary(s: Scenario, p: PresetId | null): string {
   const src = s.sourceType === "latent" ? `src ${s.tSrcIn} °C latent` : `src ${s.tSrcIn}→${s.tSrcOut} °C`;
   const sink = s.sinkType === "latent" ? `steam ${s.tSinkOut} °C` : `sink ${s.tSinkIn}→${s.tSinkOut} °C`;
-  const p = activePreset(s);
   return `${p ? PRESETS[p].label + " · " : ""}${src} · ${sink} · amb ${s.tAmb} °C`;
 }

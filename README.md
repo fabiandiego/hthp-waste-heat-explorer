@@ -28,7 +28,7 @@ The dashboard turns every equation and figure of the paper into something you ca
 - the paper's Figs. 2–7 as interactive charts, with presets that load each figure's inputs;
 - schematics of the two cycle families from Fig. 1;
 - all equations, with your current numbers substituted;
-- an **audit** of all 24 numbers the paper prints, each recomputed and checked by an automated test.
+- an **audit** of all 26 numbers the paper prints, each recomputed and checked by an automated test, plus its captions and equation references.
 
 ## Why it was built
 
@@ -38,13 +38,15 @@ The dashboard turns every equation and figure of the paper into something you ca
 
 ### What the audit found
 
-Out of 24 numeric claims: **10 reproduced**, **5 reproduced only with an assumption** the paper does not state at that point (mostly a 20 °C ambient), and **9 not reproducible** from the paper's own inputs. Main findings:
+The core equations are correct: every formula the dashboard uses (Eqs. 1–19) matches the paper. The problems are in the printed numbers. Out of 26 numeric claims: **13 reproduced**, **2 reproduced only with an assumption** the paper does not state at that point (a 20 °C ambient in Sec. 5.4), and **11 not reproducible** from the paper's own inputs. Main findings:
 
 - With isothermal source and sink, Lorenz must equal Carnot (7.05). The paper prints 3.8 in the text and 4.9 in Fig. 3.
-- Sec. 5.2 text gives Lorenz 6.9 / Carnot 4.9; the equations and Fig. 4 give 7.34 / 4.70.
 - Fig. 5's Lorenz COP of 4.3 cannot be reproduced. With a steam sink, Lorenz equals AZL (5.63).
+- **The 180 °C pattern:** the Lorenz values 3.8, 4.9 and 4.3 and the mean sink temperature of 438 K (Figs. 3 and 5) all come out exactly if the sink is taken as 180 °C instead of 150 °C. Fig. 3 also uses the 90→60 °C source mean (348 K) for a latent source. This is a hypothesis, checked by tests.
+- Sec. 5.2 text gives Lorenz 6.9 / Carnot 4.9; the equations and Fig. 4 give 7.34 / 4.70. No simple combination of the paper's temperatures explains these two.
 - The abstract pairs "cooling to 0 °C" with COP_CZ ≈ 4.4, but 4.4 needs a 20 °C ambient; at 0 °C, CZ = 3.95.
-- Fig. 7 labels the LZ panel as "COP_Car = 4.7" with the CZ formula; Eq. 18 gives 5.31.
+- Fig. 7 labels the LZ panel as "COP_Car = 4.7" and uses T_H instead of T̄_HM; Eq. 18 gives 5.31. Fig. 6's caption calls the CZ cycle "LZ".
+- "COP_CZ is lower than COP_Carnot" (Sec. 5.4) holds for the paper's 60 °C outlet but not below 53.8 °C.
 - The "up to 6× higher exergy losses" claim has no stated case. For the paper's own stream the ratio is 4.1× at a 60 °C outlet and 8.6× when cooled to ambient.
 
 The full table is in [REPRODUCTION.md](REPRODUCTION.md).
@@ -52,7 +54,8 @@ The full table is in [REPRODUCTION.md](REPRODUCTION.md).
 ## How to use the page
 
 **1. Pick a case.**
-- Use the **Fig. 3 … Fig. 7** buttons to load the paper's inputs for each figure.
+- Use the **Fig. 3 … Fig. 7** buttons to load the paper's inputs for each figure. Figs. 6 and 7 use the same 90→60 °C stream as Figs. 5 and 4 and compare it with full cooling (CZ, LZ), as in the paper; the T–ΔṠ view opens on the cycle each figure introduces.
+- **↺ Reset all** restores the Fig. 5 case; each input group (source, sink, surroundings) has its own **↺ Reset**, and each chart has **↺ Reset view**. Pinch and heat potential sit under a collapsible row in Surroundings.
 - Or set your own: source and sink type (sensible or latent), inlet and outlet temperatures, ambient, pinch, and the heat potential Q̇_max.
 - Drag a slider, or click its value and type an exact number.
 - On a phone, the inputs open from the **Edit case** bar at the bottom of the screen.
@@ -70,8 +73,8 @@ The full table is in [REPRODUCTION.md](REPRODUCTION.md).
 | **Outlet & heat** (Fig. 2) | Source and refrigerant temperature against transferred heat, with the exergy lost in the heat exchanger | Toggle *Evaporator* vs *Gliding HX*; press ▶ *Animate cooling to ambient* |
 | **T–ΔṠ** (Figs. 3–7) | Each reference cycle against the real streams; hatched bars are exergy losses (T_amb · ΔṠ) | Pick Carnot vs Lorenz to see where losses appear; use *Zoom to cycle*; ▶ *Replay cycle* |
 | **COP vs heat** | Reference COP and delivered heat as the source outlet is lowered towards ambient | Hover the lines; compare the marker at ambient (CZ/LZ) with the current point |
-| **Equations** | Eqs. 1–19 with live substitution; badges mark numbering errors in the paper | Change a temperature and watch the numbers update |
-| **Paper audit** | Each printed number, recomputed, with status and reason | Click *Load case* to open the exact case behind a row |
+| **Equations** | Eqs. 1–19 as a compact list with each result; open a row for the formula, full substitution and badges marking the paper's numbering errors | Enter a measured COP in Eqs. 14–15 to get efficiency factors against every reference |
+| **Paper audit** | Each printed number, recomputed, with status, reason and the likely cause where one is found; then the captions and statements | Click *Load case* to open the exact case behind any row |
 
 **4. Share a case.** The address bar stores the current case, so copying the link reopens it.
 
@@ -112,7 +115,7 @@ src/content/    equations (MathML) and the paper claims
 src/plots/      SVG chart primitive and chart data builders (pure, tested)
 src/ui/         controls, KPI cards, headline, sections
 src/schematics/ cycle component drawings
-tests/          68 tests: thermodynamics, store, chart data, one per paper claim
+tests/          87 tests: thermodynamics, store, chart data, one per paper claim and statement
 scripts/        single-file build and REPRODUCTION.md generator
 ```
 
@@ -133,7 +136,7 @@ A scenario object goes into the store. The store derives every COP, heat flow an
 ## Development
 
 ```bash
-bun test                          # 68 tests
+bun test                          # 87 tests
 bun run typecheck                 # tsc --noEmit (needs TypeScript installed)
 bun scripts/build.ts              # writes dist/index.html
 bun scripts/gen-reproduction.ts   # regenerates REPRODUCTION.md from src/content/claims.ts

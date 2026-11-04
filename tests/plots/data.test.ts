@@ -53,3 +53,19 @@ describe("chart helpers", () => {
     expect(niceTicks(0, 500, 5)).toEqual([0, 100, 200, 300, 400, 500]);
   });
 });
+
+describe("chart numbers agree with the cards", () => {
+  it("the trade-off marker sits exactly on the current outlet and equals the headline value", () => {
+    for (const out of [60, 47.5, 33]) {
+      const s = { ...DEFAULTS, tSrcOut: out };
+      const d = derive(s);
+      const marker = buildTradeoff(s).series.find((x) => x.kind === "marker" && x.label?.endsWith("now"));
+      expect(marker && marker.kind === "marker").toBe(true);
+      if (marker && marker.kind === "marker") {
+        expect(marker.x).toBe(out);
+        expect(marker.y).toBeCloseTo(d.q.sinkMatch, 10);
+        expect(marker.label).toBe(`${Math.round(d.q.sinkMatch)} kW now`);
+      }
+    }
+  });
+});

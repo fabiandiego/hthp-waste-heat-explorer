@@ -104,7 +104,7 @@ const setSheet = (open: boolean) => {
 openBtn.addEventListener("click", () => setSheet(true));
 closeBtn.addEventListener("click", () => setSheet(false));
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && rail.classList.contains("open")) setSheet(false); });
-const syncBar = () => (cbSum.textContent = caseSummary(store.get()));
+const syncBar = () => (cbSum.textContent = caseSummary(store.get(), store.presetId()));
 syncBar();
 store.subscribe(syncBar);
 

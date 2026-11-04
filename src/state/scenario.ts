@@ -43,33 +43,54 @@ export const DEFAULTS: Scenario = {
 
 export type PresetId = "fig3" | "fig4" | "fig5" | "fig6" | "fig7";
 
-export const PRESETS: Record<PresetId, { label: string; caption: string; scenario: Scenario }> = {
+/** Reference cycle a paper figure is about; mirrors CopKey in thermo/cop.ts (kept local to avoid an import cycle). */
+export type FocusKey = "carnot" | "lorenz" | "azl" | "cz" | "lz";
+
+/**
+ * The paper's figure cases. Figs. 6 and 7 use the same 90 -> 60 C stream as Figs. 5 and 4
+ * (see their captions) and compare it with the same stream cooled to ambient (CZ, LZ).
+ * `focus` is the reference cycle the figure introduces, shown first in the T-dS view.
+ */
+export const PRESETS: Record<PresetId, { label: string; caption: string; scenario: Scenario; focus: FocusKey }> = {
   fig3: {
     label: "Fig. 3",
-    caption: "Latent source 90 °C, latent sink 150 °C",
+    caption: "Latent source 90 °C, latent sink 150 °C: Carnot vs Lorenz",
     scenario: { ...DEFAULTS, sourceType: "latent", tSrcOut: 90, sinkType: "latent" },
+    focus: "carnot",
   },
   fig4: {
     label: "Fig. 4",
-    caption: "Sensible source 90→60 °C, sensible sink 110→150 °C",
+    caption: "Sensible source 90→60 °C, sensible sink 110→150 °C: Carnot vs Lorenz",
     scenario: { ...DEFAULTS, sinkType: "sensible" },
+    focus: "lorenz",
   },
   fig5: {
     label: "Fig. 5",
-    caption: "Sensible source 90→60 °C, latent sink 150 °C",
+    caption: "Sensible source 90→60 °C, steam at 150 °C: Carnot, Lorenz, AZL",
     scenario: { ...DEFAULTS },
+    focus: "azl",
   },
   fig6: {
     label: "Fig. 6",
-    caption: "Source cooled to ambient (20 °C), latent sink 150 °C",
-    scenario: { ...DEFAULTS, tSrcOut: 20 },
+    caption: "Same stream, steam at 150 °C: AZL (to 60 °C) vs CZ (to ambient)",
+    scenario: { ...DEFAULTS },
+    focus: "cz",
   },
   fig7: {
     label: "Fig. 7",
-    caption: "Source cooled to ambient (20 °C), sensible sink 110→150 °C",
-    scenario: { ...DEFAULTS, sinkType: "sensible", tSrcOut: 20 },
+    caption: "Same stream, sink 110→150 °C: Lorenz (to 60 °C) vs LZ (to ambient)",
+    scenario: { ...DEFAULTS, sinkType: "sensible" },
+    focus: "lz",
   },
 };
+
+/** Inputs each reset button restores. */
+export const RESET_GROUPS = {
+  source: ["sourceType", "tSrcIn", "tSrcOut"],
+  sink: ["sinkType", "tSinkIn", "tSinkOut"],
+  surroundings: ["tAmb", "pinch", "QmaxkW"],
+} as const satisfies Record<string, readonly (keyof Scenario)[]>;
+export type ResetGroup = keyof typeof RESET_GROUPS;
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 

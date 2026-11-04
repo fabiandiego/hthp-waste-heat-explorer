@@ -9,7 +9,7 @@ export type Series =
   | { kind: "line"; label: string; color: string; points: Pt[]; dash?: boolean | string; width?: number; opacity?: number; hover?: boolean; endLabel?: boolean; tag?: { at: number; text: string } }
   | { kind: "poly"; points: Pt[]; fill: string; opacity?: number; stroke?: string }
   | { kind: "hatch"; x0: number; x1: number; y0: number; y1: number; color: string; angle: 45 | 135; label?: string }
-  | { kind: "marker"; x: number; y: number; color: string; label?: string; ring?: boolean }
+  | { kind: "marker"; x: number; y: number; color: string; label?: string; ring?: boolean; labelPos?: "right" | "above" | "below" }
   | { kind: "vline"; x: number; color: string; dash?: boolean; label?: string }
   | { kind: "hline"; y: number; color: string; dash?: boolean; label?: string }
   | { kind: "text"; x: number; y: number; text: string; anchor?: "start" | "middle" | "end"; color?: string; dy?: number };
@@ -175,7 +175,10 @@ export function createChart(host: HTMLElement): Chart {
         labels.appendChild(el("circle", { cx: sx(se.x), cy: sy(se.y), r: 5, fill: se.ring ? "var(--surface)" : se.color, stroke: se.ring ? se.color : "var(--surface)", "stroke-width": 2 }));
         if (se.label) {
           const right = sx(se.x) < W - 140;
-          const t = el("text", { x: sx(se.x) + (right ? 9 : -9), y: sy(se.y) + 4, class: "dlabel", "text-anchor": right ? "start" : "end" });
+          const pos = se.labelPos ?? "right";
+          const dy = pos === "above" ? -11 : pos === "below" ? 18 : 4;
+          const dx = pos === "right" ? 9 : 4;
+          const t = el("text", { x: sx(se.x) + (right ? dx : -dx), y: sy(se.y) + dy, class: "dlabel", "text-anchor": right ? "start" : "end" });
           t.textContent = se.label;
           labels.appendChild(t);
         }

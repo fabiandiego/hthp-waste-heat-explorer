@@ -1,17 +1,21 @@
 import { h, prefersReducedMotion } from "./dom";
 import type { Store } from "../state/store";
-import { PRESETS, type PresetId, type Scenario } from "../state/scenario";
+import { PRESETS, type Scenario } from "../state/scenario";
 import { createChart, fmt } from "../plots/svgchart";
 import { buildTq, buildTds, buildSweep, buildTradeoff, COLOR, REF_NAME } from "../plots/specs";
 import type { HxMode } from "../thermo/exergy";
 import type { CopKey } from "../thermo/cop";
 import { cycleSvg } from "../schematics/cycles";
 import { EQUATIONS } from "../content/equations";
-import { CLAIMS, relDev, type ClaimStatus } from "../content/claims";
+import { CLAIMS, STATEMENTS, caseOf, relDev, type ClaimStatus } from "../content/claims";
 
 const legend = (items: { label: string; color: string; dash?: boolean; hatch?: boolean }[]) =>
   h("div", { class: "legend" }, ...items.map((i) =>
     h("span", {}, h("i", { class: i.dash ? "dash" : "", style: `background:${i.color};color:${i.color}${i.hatch ? `;height:10px;background:repeating-linear-gradient(45deg, ${i.color} 0 2px, transparent 2px 5px)` : ""}` }), i.label)));
+
+/** A small ghost button that restores a view's own settings. */
+const resetBtn = (label: string, fn: () => void) =>
+  h("button", { type: "button", class: "btn ghost reset", title: label, onclick: fn }, "↺ Reset view");
 
 /** Tween a number from a to b over ms, calling fn each frame. Returns a cancel function. */
 function tween(a: number, b: number, ms: number, fn: (v: number, done: boolean) => void): () => void {
@@ -48,8 +52,14 @@ export function mountTq(host: HTMLElement, store: Store) {
     const start = s.tSrcIn - 1;
     cancel = tween(start, s.tAmb, 3600, (v, done) => store.set({ tSrcOut: done ? s.tAmb : Math.round(v * 2) / 2 }));
   });
+  const reset = resetBtn("Back to the evaporator view and the Fig. 5 outlet (60 °C)", () => {
+    cancel();
+    mode = "isothermal";
+    store.set({ tSrcOut: PRESETS.fig5.scenario.tSrcOut });
+    render();
+  });
   host.append(
-    h("div", { class: "row" }, h("div", { class: "seg", role: "group", "aria-label": "Low-pressure heat exchanger type" }, ...modeBtns), play),
+    h("div", { class: "row" }, h("div", { class: "seg", role: "group", "aria-label": "Low-pressure heat exchanger type" }, ...modeBtns), play, reset),
     chartEl,
     legend([
       { label: "Source stream (used part)", color: COLOR.src },
@@ -80,7 +90,12 @@ export function mountTq(host: HTMLElement, store: Store) {
 /* ---------- Figs. 3-7: T - dS diagram ---------- */
 export function mountTds(host: HTMLElement, store: Store) {
   let key: CopKey | null = null;
-  let zoom = false;
+  let zoom = true;
+  let lastPreset = store.presetId();
+  const focusOf = () => {
+    const p = store.presetId();
+    return p ? (PRESETS[p].focus as CopKey) : store.derived().matchKey;
+  };
   const zoomBtns = [false, true].map((z) =>
     h("button", { type: "button", "data-z": String(z), onclick: () => { zoom = z; render(1); } }, z ? "Zoom to cycle" : "Axis from 0 K"));
   const chartEl = h("div", {});
@@ -90,12 +105,18 @@ export function mountTds(host: HTMLElement, store: Store) {
   const readout = h("div", { class: "readout", "aria-live": "polite" });
   let cancel = () => {};
   const replay = h("button", { type: "button", class: "btn ghost" }, "▶ Replay cycle");
+  const reset = resetBtn("Back to the figure's reference cycle, zoomed in", () => {
+    cancel();
+    key = focusOf();
+    zoom = true;
+    render(1);
+  });
   replay.addEventListener("click", () => {
     cancel();
     cancel = tween(0.02, 1, 1800, (v) => render(v));
   });
   host.append(
-    h("div", { class: "row" }, h("div", { class: "seg", role: "group", "aria-label": "Reference cycle" }, ...keyBtns), h("div", { class: "seg", role: "group", "aria-label": "Temperature axis" }, ...zoomBtns), replay),
+    h("div", { class: "row" }, h("div", { class: "seg", role: "group", "aria-label": "Reference cycle" }, ...keyBtns), h("div", { class: "seg", role: "group", "aria-label": "Temperature axis" }, ...zoomBtns), replay, reset),
     chartEl,
     legend([
       { label: "Reference cycle", color: "var(--ink)", dash: true },
@@ -109,7 +130,8 @@ export function mountTds(host: HTMLElement, store: Store) {
   const render = (progress = 1) => {
     const s = store.get();
     const d = store.derived();
-    if (!key || !d.cops[key].valid) key = d.matchKey;
+    if (!key || !d.cops[key].valid) key = focusOf();
+    if (!d.cops[key].valid) key = d.matchKey;
     const k = key;
     const spec = buildTds(s, k, progress, zoom);
     zoomBtns.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.z === String(zoom))));
@@ -125,8 +147,15 @@ export function mountTds(host: HTMLElement, store: Store) {
          <span>source loss <b>${fmt(m.exLossSrc, 1)} kW</b></span><span>sink loss <b>${fmt(m.exLossSink, 1)} kW</b></span>`
       : `<span>${REF_NAME[k]} does not apply to this case.</span>`;
   };
+  key = focusOf();
   render();
-  store.subscribe(() => render());
+  store.subscribe(() => {
+    // Loading a figure shows the reference cycle that figure is about.
+    const p = store.presetId();
+    if (p && p !== lastPreset) key = PRESETS[p].focus as CopKey;
+    lastPreset = p;
+    render();
+  });
 }
 
 /* ---------- COP sweep and heat trade-off ---------- */
@@ -198,18 +227,38 @@ export function mountSchematics(host: HTMLElement, store: Store) {
 
 /* ---------- Equations ---------- */
 export function mountEquations(host: HTMLElement, store: Store) {
-  const lives: { el: HTMLElement; fn: NonNullable<(typeof EQUATIONS)[number]["live"]> }[] = [];
-  for (const e of EQUATIONS) {
+  let realCop: number | null = null;
+  const rows: { e: (typeof EQUATIONS)[number]; live: HTMLElement | null; short: HTMLElement }[] = [];
+  const items = EQUATIONS.map((e) => {
     const live = e.live ? h("div", { class: "live" }) : null;
-    if (live && e.live) lives.push({ el: live, fn: e.live });
-    host.append(h("article", { class: "eq", id: `eq-${e.id}` },
-      h("div", { class: "no" }, e.paperNo, e.badge ? h("span", { class: "badge" }, e.badge) : null),
-      h("div", { class: "body" }, h("h3", {}, e.title), h("div", { html: e.mathml }), h("p", { class: "expl" }, e.explain), live)));
-  }
+    const short = h("span", { class: "eq-short" });
+    rows.push({ e, live, short });
+    const copInput = e.takesRealCop
+      ? h("label", { class: "row real-cop" }, "Measured COP",
+          h("input", { type: "number", id: "real-cop", min: 1, max: 30, step: 0.1, inputmode: "decimal", placeholder: "e.g. 3.2",
+            oninput: (ev: Event) => { const v = Number((ev.target as HTMLInputElement).value); realCop = v > 1 ? v : null; render(); } }))
+      : null;
+    return h("details", { class: "eq", id: `eq-${e.id}` },
+      h("summary", {}, h("span", { class: "no" }, e.paperNo), h("span", { class: "eq-title" }, e.title, e.badge ? h("span", { class: "badge", title: e.badge }, "!") : null), short),
+      h("div", { class: "body" },
+        e.badge ? h("span", { class: "badge" }, e.badge) : null,
+        h("div", { class: "math", html: e.mathml }),
+        h("p", { class: "expl" }, e.explain), copInput, live));
+  });
+  const all = h("button", { type: "button", class: "btn ghost" }, "Expand all");
+  all.addEventListener("click", () => {
+    const open = items.some((i) => !i.open);
+    items.forEach((i) => (i.open = open));
+    all.textContent = open ? "Collapse all" : "Expand all";
+  });
+  host.append(h("div", { class: "row" }, all, h("span", { class: "hint" }, "Each row shows its result for the current case. Open a row for the formula and the full substitution.")), ...items);
   const render = () => {
     const s = store.get();
     const d = store.derived();
-    for (const l of lives) l.el.textContent = l.fn(s, d) || "—";
+    for (const r of rows) {
+      if (r.live && r.e.live) r.live.textContent = r.e.live(s, d, realCop) || "—";
+      r.short.textContent = r.e.short ? r.e.short(s, d, realCop) : "";
+    }
   };
   render();
   store.subscribe(render);
@@ -229,22 +278,31 @@ export function mountAudit(host: HTMLElement, store: Store, onLoad: () => void) 
   const rows = CLAIMS.map((c) => {
     const v = c.compute();
     const st = STATUS[c.status];
-    const load = c.preset
-      ? h("button", { type: "button", class: "chip-btn", onclick: () => { store.set(scenarioOf(c.preset!)); onLoad(); } }, "Load case")
-      : null;
+    const load = h("button", { type: "button", class: "chip-btn", onclick: () => {
+      if (c.preset && !c.case) store.loadPreset(c.preset);
+      else store.set(caseOf(c));
+      onLoad();
+    } }, "Load case");
     return h("tr", { id: `claim-${c.id}` },
       h("td", {}, h("div", {}, c.statement), h("div", { class: "where" }, c.where)),
       h("td", { class: "num", "data-label": "Paper" }, `${c.paper} ${c.unit === "–" ? "" : c.unit}`),
       h("td", { class: "num", "data-label": "Recomputed" }, `${fmt(v, Math.abs(v) >= 100 ? 1 : 2)} ${c.unit === "–" ? "" : c.unit}`),
       h("td", { class: "num", "data-label": "Dev." }, `${fmt(relDev(c) * 100, 1)} %`),
       h("td", {}, h("span", { class: `status ${st.cls}` }, `${st.icon} ${st.text}`)),
-      h("td", {}, h("div", { class: "note" }, c.note), c.assumption ? h("div", { class: "note" }, h("b", {}, "Assumption: "), c.assumption) : null),
+      h("td", {}, h("div", { class: "note" }, c.note),
+        c.assumption ? h("div", { class: "note" }, h("b", {}, "Assumption: "), c.assumption) : null,
+        c.likelyCause ? h("div", { class: "note cause" }, h("b", {}, "Likely cause: "), c.likelyCause.text) : null),
       h("td", {}, load));
   });
   host.append(summary,
     h("div", { class: "table-wrap" }, h("table", { class: "audit-table" },
       h("thead", {}, h("tr", {}, h("th", {}, "Paper states"), h("th", { class: "num" }, "Paper"), h("th", { class: "num" }, "Recomputed"), h("th", { class: "num" }, "Dev."), h("th", {}, "Status"), h("th", {}, "Why"), h("th", {}, ""))),
-      h("tbody", {}, ...rows))));
+      h("tbody", {}, ...rows))),
+    h("h3", { class: "sub-h" }, "Statements and labels"),
+    h("p", { class: "hint" }, "Claims in words, figure captions and equation references. Each is checked by a test where it can be."),
+    h("div", { class: "table-wrap" }, h("table", { class: "audit-table statements" },
+      h("thead", {}, h("tr", {}, h("th", {}, "Paper states"), h("th", {}, "Finding"))),
+      h("tbody", {}, ...STATEMENTS.map((st) => h("tr", { id: `stmt-${st.id}` },
+        h("td", {}, h("div", {}, st.statement), h("div", { class: "where" }, st.where)),
+        h("td", {}, h("div", { class: "note" }, st.verdict))))))));
 }
-
-const scenarioOf = (id: PresetId) => PRESETS[id].scenario;

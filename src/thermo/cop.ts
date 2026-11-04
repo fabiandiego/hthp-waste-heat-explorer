@@ -43,7 +43,7 @@ export function refTemps(s: Scenario): RefTemps {
 /**
  * All five reference COPs for a scenario, following the paper's definitions:
  * Carnot uses the source and sink OUTLET temperatures (Sec. 5.2);
- * AZL and CZ apply to latent sinks, LZ to sensible sinks;
+ * AZL and CZ apply to a sensible source with a latent sink, LZ to sensible sinks;
  * CZ and LZ apply to sensible sources only and need t_amb < t_src,in.
  */
 export function referenceCops(s: Scenario): Record<CopKey, CopResult> {
@@ -54,7 +54,8 @@ export function referenceCops(s: Scenario): Record<CopKey, CopResult> {
   return {
     carnot: copCarnot(t.TH, t.T0),
     lorenz: copLorenz(t.THM, t.T0M),
-    azl: latentSink ? copAZL(t.TH, t.T0M) : na("not-applicable"),
+    // AZL needs a gliding source; on a latent source it would just repeat Carnot.
+    azl: latentSink && sensibleSrc ? copAZL(t.TH, t.T0M) : na("not-applicable"),
     cz: !latentSink || !sensibleSrc ? na("not-applicable") : ambientOk ? copCZ(t.TH, t.T0AM) : na("no-source"),
     lz: latentSink || !sensibleSrc ? na("not-applicable") : ambientOk ? copLZ(t.THM, t.T0AM) : na("no-source"),
   };

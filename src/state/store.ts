@@ -1,4 +1,4 @@
-import { DEFAULTS, normalize, type Scenario } from "./scenario";
+import { DEFAULTS, PRESETS, RESET_GROUPS, normalize, type PresetId, type ResetGroup, type Scenario } from "./scenario";
 import { referenceCops, refTemps, type CopKey, type CopResult, type RefTemps } from "../thermo/cop";
 import { mcpFromQmax, qSource, qSink, pElectric } from "../thermo/heat";
 import { exergySensible, exLossSource } from "../thermo/exergy";
@@ -22,8 +22,11 @@ export function derive(s: Scenario): Derived {
   const mcp = latentSrc ? NaN : mcpFromQmax(s.QmaxkW, s.tSrcIn, s.tAmb);
   const src = latentSrc ? s.QmaxkW : qSource(mcp, s.tSrcIn, s.tSrcOut);
   const max = s.QmaxkW;
-  const matchKey: CopKey = latentSrc ? "carnot" : s.sinkType === "latent" ? "azl" : "lorenz";
-  const fullKey: CopKey | null = latentSrc ? null : s.sinkType === "latent" ? "cz" : "lz";
+  // The reference whose temperature shape matches both real streams at the current outlet:
+  // isothermal sides for latent streams, entropic means for gliding ones.
+  const latentSink = s.sinkType === "latent";
+  const matchKey: CopKey = latentSink ? (latentSrc ? "carnot" : "azl") : "lorenz";
+  const fullKey: CopKey | null = latentSrc ? null : latentSink ? "cz" : "lz";
   const copM = cops[matchKey].value;
   const copF = fullKey ? cops[fullKey].value : NaN;
   return {
@@ -53,21 +56,50 @@ export function derive(s: Scenario): Derived {
 export type Store = {
   get(): Scenario;
   derived(): Derived;
+  /** The paper figure whose inputs are loaded, or null for a custom case. */
+  presetId(): PresetId | null;
   set(p: Partial<Scenario>): void;
+  loadPreset(id: PresetId): void;
+  /** Restore one input group, or every input when no group is given, to the Fig. 5 defaults. */
+  reset(group?: ResetGroup): void;
   subscribe(fn: (s: Scenario, d: Derived) => void): () => void;
 };
+
+const sameScenario = (a: Scenario, b: Scenario) => (Object.keys(a) as (keyof Scenario)[]).every((k) => a[k] === b[k]);
+
+/** The preset matching a scenario; keeps `prefer` when several presets share the same inputs (Figs. 4/7, 5/6). */
+export function matchPreset(s: Scenario, prefer: PresetId | null = null): PresetId | null {
+  if (prefer && sameScenario(s, normalize(PRESETS[prefer].scenario))) return prefer;
+  for (const [id, p] of Object.entries(PRESETS)) if (sameScenario(s, normalize(p.scenario))) return id as PresetId;
+  return null;
+}
 
 export function createStore(init?: Partial<Scenario>): Store {
   let s = normalize({ ...DEFAULTS, ...init });
   let d = derive(s);
+  let preset = matchPreset(s);
   const subs = new Set<(s: Scenario, d: Derived) => void>();
+  const commit = (next: Scenario, prefer: PresetId | null) => {
+    s = normalize(next);
+    d = derive(s);
+    preset = matchPreset(s, prefer);
+    subs.forEach((fn) => fn(s, d));
+  };
   return {
     get: () => s,
     derived: () => d,
+    presetId: () => preset,
     set(p) {
-      s = normalize({ ...s, ...p });
-      d = derive(s);
-      subs.forEach((fn) => fn(s, d));
+      commit({ ...s, ...p }, preset);
+    },
+    loadPreset(id) {
+      commit({ ...PRESETS[id].scenario }, id);
+    },
+    reset(group) {
+      if (!group) return commit({ ...DEFAULTS }, "fig5");
+      const next = { ...s } as Record<keyof Scenario, unknown>;
+      for (const k of RESET_GROUPS[group]) next[k] = DEFAULTS[k];
+      commit(next as Scenario, preset);
     },
     subscribe(fn) {
       subs.add(fn);
