@@ -29,6 +29,10 @@
   --font-body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --r: 6px;
+  --shadow-tip: 0 4px 14px rgb(0 0 0 / 0.12);
+  --shadow-bar: 0 -4px 14px rgb(0 0 0 / 0.08);
+  --shadow-sheet: 0 -10px 30px rgb(0 0 0 / 0.2);
+  --scrim: rgb(0 0 0 / 0.35);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -37,6 +41,7 @@
     --src: #2e9e2e; --sink: #e66767; --amb: #8ea1b3; --cyc: #e6ecf0;
     --ref-carnot: #3987e5; --ref-lorenz: #d95926; --ref-azl: #199e70; --ref-full: #c98500;
     --ok: #6fd08f; --warn: #f0b75a; --bad: #ff8a85; --ok-bg: #173323; --warn-bg: #3a2b0f; --bad-bg: #3d1a1a;
+    --shadow-tip: 0 4px 14px rgb(0 0 0 / 0.45); --shadow-bar: 0 -4px 14px rgb(0 0 0 / 0.4); --shadow-sheet: 0 -10px 30px rgb(0 0 0 / 0.55); --scrim: rgb(0 0 0 / 0.6);
     color-scheme: dark;
   }
 }
@@ -46,10 +51,12 @@
   --src: #2e9e2e; --sink: #e66767; --amb: #8ea1b3; --cyc: #e6ecf0;
   --ref-carnot: #3987e5; --ref-lorenz: #d95926; --ref-azl: #199e70; --ref-full: #c98500;
   --ok: #6fd08f; --warn: #f0b75a; --bad: #ff8a85; --ok-bg: #173323; --warn-bg: #3a2b0f; --bad-bg: #3d1a1a;
+  --shadow-tip: 0 4px 14px rgb(0 0 0 / 0.45); --shadow-bar: 0 -4px 14px rgb(0 0 0 / 0.4); --shadow-sheet: 0 -10px 30px rgb(0 0 0 / 0.55); --scrim: rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
+html, body { overflow-x: clip; }
 body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.5; }
 .wrap { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
 h1, h2, h3 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.1; }
@@ -82,7 +89,6 @@ button, input, select { font: inherit; color: inherit; }
 .rail-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .rail-head h2 { font-size: 1.25rem; }
 .btn.small { padding: 3px 9px; font-size: 0.8rem; }
-.btn:disabled { opacity: 0.45; cursor: default; filter: none; }
 .link-btn { margin-left: auto; border: 0; background: transparent; color: var(--accent); font: inherit; font-family: var(--font-body); font-size: 0.8rem; font-weight: 400; cursor: pointer; padding: 2px 4px; border-radius: 4px; }
 .link-btn:hover { background: var(--surface-2); }
 details.more > summary { cursor: pointer; font-size: 0.86rem; color: var(--accent); padding-block: 4px; width: fit-content; }
@@ -110,6 +116,8 @@ details.more[open] { display: grid; gap: 6px; }
 .btn { border: 1px solid var(--ink); background: var(--ink); color: var(--surface); border-radius: var(--r); padding: 6px 12px; font-size: 0.88rem; cursor: pointer; }
 .btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
 .btn:hover { filter: brightness(1.12); }
+/* Disabled: change fill, ink and border, not opacity alone; placed after .ghost and :hover so it wins */
+.btn:disabled, .btn.ghost:disabled { background: var(--surface-2); color: var(--ink-3); border-color: var(--line); cursor: not-allowed; filter: none; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 /* Sections */
@@ -145,7 +153,7 @@ section { display: grid; gap: 16px; min-width: 0; }
 .chart .tick line { stroke: var(--grid); }
 .chart .axis-line { stroke: var(--ink-3); }
 .chart .dlabel { font-size: 12px; font-weight: 600; fill: var(--ink); }
-.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 6px 8px; font-size: 0.8rem; box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); white-space: nowrap; z-index: 2; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 6px 8px; font-size: 0.8rem; box-shadow: var(--shadow-tip); white-space: nowrap; z-index: 2; }
 .tip .tr { display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.85rem; color: var(--ink-2); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
@@ -248,14 +256,14 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 /* ---- Mobile: results first, inputs in a sheet behind a sticky case bar ---- */
 .casebar, .rail-close { display: none; }
 @media (max-width: 920px) {
-  .casebar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; gap: 10px; align-items: center; justify-content: space-between; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -4px 14px rgb(0 0 0 / 0.08); padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .casebar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; gap: 10px; align-items: center; justify-content: space-between; background: var(--surface); border-top: 1px solid var(--line); box-shadow: var(--shadow-bar); padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .casebar .btn { white-space: nowrap; flex: none; }
   .casebar .cb-sum { font-family: var(--font-mono); font-size: 0.8rem; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .shell { padding-bottom: 120px; }
-  .rail { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 40; max-height: 62vh; border-radius: 14px 14px 0 0; transform: translateY(105%); transition: transform 0.25s ease; box-shadow: 0 -10px 30px rgb(0 0 0 / 0.2); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); visibility: hidden; }
+  .rail { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 40; max-height: 62vh; border-radius: 14px 14px 0 0; transform: translateY(105%); transition: transform 0.25s ease; box-shadow: var(--shadow-sheet); padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); visibility: hidden; }
   .rail.open { transform: none; visibility: visible; }
   .rail-close { display: inline-flex; justify-self: end; }
-  .scrim { position: fixed; inset: 0; z-index: 35; background: rgb(0 0 0 / 0.35); }
+  .scrim { position: fixed; inset: 0; z-index: 35; background: var(--scrim); }
 }
 @media (prefers-reduced-motion: reduce) { .rail { transition: none; } }
 
